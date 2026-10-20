@@ -2,24 +2,30 @@
 
 namespace Database\Seeders;
 
+use App\Models\Patient;
 use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
+/** Local development data only. Refuses to run in production. */
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
-    /**
-     * Seed the application's database.
-     */
     public function run(): void
     {
-        // User::factory(10)->create();
+        if (app()->isProduction()) {
+            $this->command?->error('The seeder creates a known password. It will not run in production.');
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+            return;
+        }
+
+        // A ready-made patient for trying login without signing up:
+        //   login with 08000000001, personal ID 4829175036, or password Password1
+        $user = User::factory()->create(['phone' => '08000000001']);
+
+        Patient::factory()->create([
+            'id' => $user->id,
+            'personal_id' => '4829175036',
+            'fullname' => 'Tunde Babatunde Adeyemi',
+            'username' => 'Tunde Adeyemi',
         ]);
     }
 }
