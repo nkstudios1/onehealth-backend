@@ -27,6 +27,14 @@ SETUP_BASE="${DB_DIRECT_URL:-$DB_URL}"
 DB_URL_FOR_SETUP=$(printf '%s' "$SETUP_BASE" | sed -e 's/-pooler\././' -e 's/&channel_binding=require//' -e 's/?channel_binding=require&/?/' -e 's/?channel_binding=require$//')
 export DB_URL_FOR_SETUP
 
+# The running app uses the direct host too. Through Neon's pooler (PgBouncer, transaction mode) any
+# request that runs inside a DB transaction failed with SQLSTATE 25P02 ("current transaction is
+# aborted"): rate limiting, and the access flow's "first approval wins" lock. A demo with one
+# instance does not need pooling, so the direct host is the safe choice.
+if [ -n "$DB_URL_FOR_SETUP" ]; then
+    export DB_URL="$DB_URL_FOR_SETUP"
+fi
+
 # Create or update the tables. Safe to repeat: only new migrations run.
 if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
     DB_URL="$DB_URL_FOR_SETUP" php artisan migrate --force
