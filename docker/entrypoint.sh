@@ -19,11 +19,13 @@ php artisan package:discover --ansi
 # Neon: the app should use the POOLED url (host contains "-pooler") in DB_URL, but migrations
 # should use the DIRECT url, because the pooler can interfere with schema changes. Put the direct
 # one in DB_DIRECT_URL and this script uses it only for the two commands below. Not set = DB_URL is used.
-if [ -n "$DB_DIRECT_URL" ]; then
-    export DB_URL_FOR_SETUP="$DB_DIRECT_URL"
-else
-    export DB_URL_FOR_SETUP="$DB_URL"
-fi
+#
+# Safety net: if DB_DIRECT_URL is missing (or still points at the pooler), derive the direct host
+# by removing "-pooler" from the host name. Neon's direct host is the same name without it.
+# channel_binding=require is also dropped because it is not needed and can break the PHP driver.
+SETUP_BASE="${DB_DIRECT_URL:-$DB_URL}"
+DB_URL_FOR_SETUP=$(printf '%s' "$SETUP_BASE" | sed -e 's/-pooler\././' -e 's/&channel_binding=require//' -e 's/?channel_binding=require&/?/' -e 's/?channel_binding=require$//')
+export DB_URL_FOR_SETUP
 
 # Create or update the tables. Safe to repeat: only new migrations run.
 if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
