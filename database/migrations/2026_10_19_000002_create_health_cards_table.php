@@ -20,8 +20,14 @@ return new class extends Migration
             $table->timestamp('deactivated_at')->nullable();
             $table->string('deactivated_by', 20)->nullable();
             $table->string('reason_deactivated')->nullable();
-            $table->foreignUuid('replaced_by')->nullable()->constrained('health_cards')->nullOnDelete();
+            $table->foreignUuid('replaced_by')->nullable();
             $table->timestamps();
+        });
+
+        // Self-reference added in a second step: on Postgres the primary key is created after the
+        // columns, so a foreign key to this same table inside create() fails ("no unique constraint").
+        Schema::table('health_cards', function (Blueprint $table) {
+            $table->foreign('replaced_by')->references('id')->on('health_cards')->nullOnDelete();
         });
     }
 
