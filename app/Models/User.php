@@ -56,6 +56,16 @@ class User extends Authenticatable
         return $this->hasOne(Patient::class, 'id');
     }
 
+    /** The organisation this user acts for: an org admin IS the organisation, staff belong to one. */
+    public function organisation(): ?Organisation
+    {
+        return match ($this->type) {
+            UserType::OrgAdmin => Organisation::find($this->id),
+            UserType::OrgStaff => OrganisationStaff::with('organisation')->find($this->id)?->organisation,
+            default => null,
+        };
+    }
+
     public function isActive(): bool
     {
         return $this->status === AccountStatus::Active;

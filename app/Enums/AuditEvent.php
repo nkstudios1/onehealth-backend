@@ -26,4 +26,18 @@ enum AuditEvent: string
     case PasswordResetRequested = 'password_reset.requested';
     case PasswordResetVerified = 'password_reset.verified';
     case PasswordResetCompleted = 'password_reset.completed';
+
+    case CardActivated = 'card.activated';
+    case AccessRequested = 'access.requested';
+    case AccessEscalated = 'access.escalated';
+    case AccessApproved = 'access.approved';
+    case AccessDenied = 'access.denied';
+    case AccessCodeFailed = 'access.code_failed';
+    case SessionOpened = 'session.opened';
+    case SessionCheckedOut = 'session.checked_out';
+    case SessionRevoked = 'session.revoked';
+    case SessionAutoClosed = 'session.auto_closed';
+    case RecordCreated = 'record.created';
+    case RecordVisibilityChanged = 'record.visibility_changed';
+    case PatientDataViewed = 'patient_data.viewed';
 }

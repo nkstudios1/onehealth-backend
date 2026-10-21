@@ -1,0 +1,19 @@
+# Web server config for FrankenPHP (Caddy syntax).
+{
+	frankenphp
+	# Render terminates HTTPS in front of us; inside the container it is plain HTTP.
+	auto_https off
+	admin off
+}
+
+# {$PORT:8080} = the PORT environment variable, or 8080 when it is not set.
+:{$PORT:8080} {
+	root * /app/public
+	encode zstd gzip
+
+	# Hide dotfiles and the env file, however they got into the image.
+	@hidden path /.* /composer.json /composer.lock
+	respond @hidden 404
+
+	php_server
+}

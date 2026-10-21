@@ -5,6 +5,7 @@ use App\Exceptions\ApiException;
 use App\Exceptions\ApiExceptionRenderer;
 use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\EnsureAccountActive;
+use App\Http\Middleware\EnsureUserType;
 use App\Http\Middleware\ForceJsonResponse;
 use App\Http\Middleware\SecureApiHeaders;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -27,6 +28,11 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Runs on EVERY request, first and last, so even a 404 or a crash carries a request id
         // and the security headers.
+        // Behind a load balancer (Render, Fly, ...) the app sees the proxy's address. Trust the
+        // X-Forwarded-* headers so $request->ip() is the real client (rate limits depend on it) and
+        // https links/cookies are right. Safe here because the app is only reachable through the platform's proxy.
+        $middleware->trustProxies(at: '*');
+
         $middleware->prepend(AssignRequestId::class);
         $middleware->append(SecureApiHeaders::class);
 
@@ -41,7 +47,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         // Use on any route that needs a logged-in, still-active account: ->middleware(['auth:web', 'active'])
-        $middleware->alias(['active' => EnsureAccountActive::class]);
+        $middleware->alias(['active' => EnsureAccountActive::class, 'type' => EnsureUserType::class]);
 
         // Default is strict: only requests from the same origin, or carrying the XSRF header the
         // frontend sends, pass. Do NOT turn allowSameSite on without reading the guide (it trusts

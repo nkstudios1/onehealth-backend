@@ -75,4 +75,22 @@ return [
         // 'log' = write the message to the log (development). Production needs a real driver.
         'driver' => env('SMS_DRIVER', 'log'),
     ],
+
+    'access' => [
+        // How long the patient has to answer before the request also goes to their emergency contacts.
+        'patient_wait_seconds' => (int) env('ACCESS_PATIENT_WAIT_SECONDS', 120),
+        // How long a request can be answered. After this it expires and the hospital must scan again.
+        'request_ttl_minutes' => (int) env('ACCESS_REQUEST_TTL_MINUTES', 30),
+        // Digits in the code a contact reads out to the hospital.
+        'code_length' => 6,
+        // Wrong codes allowed per request, then the request is dead.
+        'code_max_attempts' => (int) env('ACCESS_CODE_MAX_ATTEMPTS', 5),
+        // Scan limits, so a found card or a rogue account cannot spam patients.
+        'max_requests_per_card_per_hour' => (int) env('ACCESS_MAX_PER_CARD_HOUR', 5),
+        'max_requests_per_org_per_hour' => (int) env('ACCESS_MAX_PER_ORG_HOUR', 120),
+        // A session nobody checked out of closes by itself after this many days.
+        'session_auto_close_days' => (int) env('SESSION_AUTO_CLOSE_DAYS', 3),
+        // Base URL of the page contacts open from the SMS link (the patient app).
+        'approval_link_base' => env('APPROVAL_LINK_BASE', 'http://localhost:3001/approve'),
+    ],
 ];

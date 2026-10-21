@@ -44,18 +44,31 @@ enum ErrorCode: string
     case AccountSuspended = 'ACCOUNT_SUSPENDED';
     case ResetNotFound = 'RESET_NOT_FOUND';
 
+    // ---- Access: cards, requests, sessions --------------------------------
+    case CardNotFound = 'CARD_NOT_FOUND';
+    case CardNotActive = 'CARD_NOT_ACTIVE';
+    case OrganisationNotVerified = 'ORGANISATION_NOT_VERIFIED';
+    case AccessRequestNotFound = 'ACCESS_REQUEST_NOT_FOUND';
+    case AccessRequestClosed = 'ACCESS_REQUEST_CLOSED';
+    case ApprovalCodeInvalid = 'APPROVAL_CODE_INVALID';
+    case SessionNotFound = 'SESSION_NOT_FOUND';
+    case SessionClosed = 'SESSION_CLOSED';
+    case RecordNotFound = 'RECORD_NOT_FOUND';
+
     /** HTTP status code sent with this error. */
     public function status(): int
     {
         return match ($this) {
             self::BadRequest => 400,
             self::Unauthenticated, self::InvalidCredentials => 401,
-            self::Forbidden, self::AccountSuspended => 403,
-            self::NotFound, self::NinNotFound, self::RegistrationNotFound, self::ResetNotFound => 404,
+            self::Forbidden, self::AccountSuspended, self::OrganisationNotVerified => 403,
+            self::NotFound, self::NinNotFound, self::RegistrationNotFound, self::ResetNotFound,
+            self::CardNotFound, self::AccessRequestNotFound, self::SessionNotFound, self::RecordNotFound => 404,
             self::MethodNotAllowed => 405,
-            self::NinAlreadyRegistered, self::PhoneAlreadyRegistered, self::RegistrationStepInvalid => 409,
+            self::NinAlreadyRegistered, self::PhoneAlreadyRegistered, self::RegistrationStepInvalid,
+            self::CardNotActive, self::AccessRequestClosed, self::SessionClosed => 409,
             self::RequestForgery => 419,
-            self::ValidationFailed, self::OtpInvalid, self::OtpExpired => 422,
+            self::ValidationFailed, self::OtpInvalid, self::OtpExpired, self::ApprovalCodeInvalid => 422,
             self::TooManyAttempts => 429,
             self::ServerError, self::RegistrationFailed => 500,
             self::ServiceUnavailable, self::NinServiceUnavailable, self::OtpDeliveryFailed => 503,
@@ -89,6 +102,15 @@ enum ErrorCode: string
             self::InvalidCredentials => 'Your personal ID, email or password is incorrect.',
             self::AccountSuspended => 'This account is not active. Please contact support.',
             self::ResetNotFound => 'Your reset session expired. Please start again.',
+            self::CardNotFound => "We couldn't find that card. Check the number and try again.",
+            self::CardNotActive => 'This card is not active.',
+            self::OrganisationNotVerified => 'Your organisation has not been verified yet.',
+            self::AccessRequestNotFound => "We couldn't find that access request.",
+            self::AccessRequestClosed => 'This request has already been answered or has expired.',
+            self::ApprovalCodeInvalid => "That code isn't correct. Check it and try again.",
+            self::SessionNotFound => "We couldn't find that session.",
+            self::SessionClosed => 'This session has ended.',
+            self::RecordNotFound => "We couldn't find that record.",
         };
     }
 }

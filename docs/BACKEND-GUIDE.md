@@ -140,6 +140,15 @@ All current codes:
 | `INVALID_CREDENTIALS` | 401 | Your personal ID, email or password is incorrect. |
 | `ACCOUNT_SUSPENDED` | 403 | This account is not active. Please contact support. |
 | `RESET_NOT_FOUND` | 404 | Your reset session expired. Please start again. |
+| `CARD_NOT_FOUND` | 404 | We couldn't find that card. Check the number and try again. |
+| `CARD_NOT_ACTIVE` | 409 | This card is not active. |
+| `ORGANISATION_NOT_VERIFIED` | 403 | Your organisation has not been verified yet. |
+| `ACCESS_REQUEST_NOT_FOUND` | 404 | We couldn't find that access request. |
+| `ACCESS_REQUEST_CLOSED` | 409 | This request has already been answered or has expired. |
+| `APPROVAL_CODE_INVALID` | 422 | That code isn't correct. Check it and try again. |
+| `SESSION_NOT_FOUND` | 404 | We couldn't find that session. |
+| `SESSION_CLOSED` | 409 | This session has ended. |
+| `RECORD_NOT_FOUND` | 404 | We couldn't find that record. |
 
 ### 2.5 Audit log
 
@@ -364,7 +373,10 @@ The paths in the frontend guides (`/auth/register/start` and so on) already matc
 - **Google login.** Creating an account requires a NIN, so no one can have a Google account linked yet. Hide the Google button until a "link Google in settings" flow exists. The `google_sub` column is already on `users`.
 - **Tokens / Sanctum.** Cookie sessions fit a web app. Add Sanctum later for a mobile app or the portal. The portal will need its own session cookie name and guard.
 - **A real NIN verifier and SMS gateway.** Both are interfaces (`NinVerifier`, `SmsGateway`) with development fakes. See 8.
-- **Hospital verification (CAC and NHFR), records, cards, sessions.** Later modules. Schema is in `OneHealth_Schema_v2.md`.
+- **Hospital registration and verification (CAC and NHFR).** Hospitals are created by the seeder for now. `provider_phones` exists, but the one-time-code check of a hospital's numbers is not built.
+- **Record versions.** `records` is a simplified single table. The schema's `record` plus append-only `record_version` comes later.
+- **Push notifications and email to contacts.** In-app approval works by polling; contacts are told by SMS (code and link). Web push and email are later.
+- **Break-glass override and contact opt-in.** Open items in the schema.
 
 ---
 
@@ -392,7 +404,7 @@ The paths in the frontend guides (`/auth/register/start` and so on) already matc
 
 ## 10. Tests
 
-44 tests. Run `php artisan test`.
+88 tests. Run `php artisan test`.
 
 | File | Covers |
 |---|---|
@@ -400,6 +412,86 @@ The paths in the frontend guides (`/auth/register/start` and so on) already matc
 | `Feature/Auth/RegistrationTest` | full flow, consent, duplicates, step skipping, OTP lockout, resend cooldown, SMS failure, replay |
 | `Feature/Auth/LoginTest` | three identifier types, enumeration safety, lockout, suspended, audit rows |
 | `Feature/Auth/PasswordResetTest` | sms/email/personal-id, unknown accounts, token single use and expiry, sessions revoked |
+| `Feature/Access/AccessRequestTest` | scan, patient answer, wait then contacts, code, link (GET never approves), first approval wins, expiry, rate limits, wrong hospital/patient |
+| `Feature/Access/SessionAndRecordsTest` | public vs private visibility, check-out, revoke, auto-close, hospital notes, cards |
 | `Unit/SupportTest` | phone, mask, identifier, display name, every `ErrorCode` complete |
 
 The tests do not exercise the CSRF check (Laravel skips it under test). That path was checked by hand against a running server: a POST without the header returns 419 `REQUEST_FORGERY`, with it returns 200.
+
+
+---
+
+## 11. Cards, access requests and sessions
+
+The flow: **scan, then request, then answer, then session.** A scan opens nothing. It creates a request that waits.
+
+```
+Hospital scans card ──> AccessRequest (pending, stage=patient)
+                          │ SMS + in-app to the patient
+        patient approves ─┤
+                          │ no answer within 2 minutes
+                          ▼
+                    stage=contacts: every emergency contact is asked at once
+                       SMS (6-digit code + link), plus the app if they have an account
+                          │
+   contact taps Approve (link or app)  OR  contact reads the code to the hospital, who types it in
+                          ▼
+                    CareSession (limited, until check-out)
+```
+
+Settings (all in `config/onehealth.php`, `.env`): patient wait 120 s, request valid 30 min, 6-digit code, 5 wrong codes kills the request, 5 scans per card per hour, session auto-closes after 3 days.
+
+### Patient (logged in, `type:patient`)
+
+| Request | Notes |
+|---|---|
+| `GET /cards/me` | `{card: {last4, status, expiresAt, qrToken}}`. The app draws the QR from `qrToken`. |
+| `POST /cards/activate` `{cardNumber}` | 16 digits, spaces allowed. A used or unknown number answers `CARD_NOT_FOUND` (cannot be probed). A new card replaces the old. |
+| `GET /access/requests/pending` | Poll every few seconds while the app is open. `{requests: [{requestId, organisationName, frontDeskNumbers, patientName, requestedAt, expiresAt, stage}]}` |
+| `POST /access/requests/{id}/approve` · `/deny` | Approve returns the new session. |
+| `GET /access/sessions?status=active` | Who has access now. |
+| `POST /access/sessions/{id}/revoke` | End access any time. |
+| `GET /records?category=` · `POST /records` · `PATCH /records/{id}/visibility` | Own records. **Private by default.** Free text everywhere medical. `category` is one of `clinical_report`, `vitals`, `medical_history`. |
+
+### Emergency contact
+
+| Request | Notes |
+|---|---|
+| `GET /access/contact-requests` · `POST /access/contact-requests/{id}/approve` | Logged-in contacts (matched by phone number). Only shows requests already passed on to contacts. |
+| `GET /access/approvals/{token}` | The SMS link page. **Only describes** the request (hospital, front desk numbers, patient name). It must never approve. Link scanners open every link. |
+| `POST /access/approvals/{token}/approve` | The Approve button on that page. Single use. |
+
+The page for the link lives in the patient app (`/approve/[token]`): on load call the GET, show the hospital name and the front-desk number, and show one Approve button that calls the POST. No login needed.
+
+### Hospital (logged in, `type:org_admin,org_staff`, organisation must be verified)
+
+| Request | Notes |
+|---|---|
+| `POST /provider/access-requests` `{qrToken}` or `{cardNumber, dateOfBirth}` | The scan. Typing a number needs the patient's date of birth. Scanning twice while waiting returns the same request. |
+| `GET /provider/access-requests/{id}` | Poll every 3 to 5 seconds. `status`: `pending`, `approved` (has `sessionId`), `denied`, `expired`, `cancelled`. Also moves the request on (to the contacts, or expiry). |
+| `POST /provider/access-requests/{id}/code` `{code}` | The code a contact read out. `attemptsLeft` is in the status response. |
+| `GET /provider/sessions` | Open sessions of this organisation. |
+| `GET /provider/sessions/{id}/essentials` | Patient header, **public** records, and `privateRecordCount` (a number, never content). |
+| `POST /provider/sessions/{id}/records` | Hospital writes a note into the patient's record. Always saved **private**: a hospital cannot make anything public. |
+| `POST /provider/sessions/{id}/checkout` | Ends the session. |
+
+### Rules to remember
+
+- Only the patient changes who sees a record. No route lets a hospital do it (a test proves it).
+- A session reads **public** records only (`access_level = limited`), whoever approved it.
+- `CARD_NOT_ACTIVE` is shown to a hospital that scans a deactivated or expired card (it does not reveal anything about the owner).
+- Everything is in the audit log: requests, escalations, approvals (with how), failed codes, sessions opened and closed, data viewed.
+- The scheduler must run (`php artisan schedule:run` every minute). Without it requests still advance when someone reads them, but sessions are not auto-closed.
+
+### Demo data (`php artisan migrate:fresh --seed`)
+
+| Who | Login | Notes |
+|---|---|---|
+| Patient Tunde | `08000000001` or personal ID `4829175036`, password `Password1` | Card activated (number and QR token printed by the seeder), public: blood group O positive, genotype AA, allergy Penicillin, medication None. Private: Asthma. |
+| Contact Ada | `08000000002`, password `Password1` | **Has an account**: sees requests in the app. |
+| Contact Mama Tunde | phone `08000000003` | **No account**: SMS link and code (read it in `storage/logs/laravel.log`). |
+| Hospital staff | `front@perfectmedicals.test`, password `Password1` | Perfect Medicals Inc., verified, front desk `08031112222`. |
+
+To make a request move on quickly while demoing, set `ACCESS_PATIENT_WAIT_SECONDS=10` in `.env`.
+
+New error codes the frontend needs: `CARD_NOT_FOUND`, `CARD_NOT_ACTIVE`, `ORGANISATION_NOT_VERIFIED`, `ACCESS_REQUEST_NOT_FOUND`, `ACCESS_REQUEST_CLOSED`, `APPROVAL_CODE_INVALID`, `SESSION_NOT_FOUND`, `SESSION_CLOSED`, `RECORD_NOT_FOUND`, `FORBIDDEN`.

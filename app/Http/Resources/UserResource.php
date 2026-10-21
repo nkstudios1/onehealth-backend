@@ -21,11 +21,15 @@ class UserResource extends JsonResource
     {
         $patient = $this->patient;
 
+        $org = $patient === null ? $this->organisation() : null;
+
         return [
             'id' => $this->id,
+            'type' => $this->type->value,
             'fullName' => $patient?->fullname,
             'personalId' => $patient?->personal_id,
             'username' => $patient?->username,
+            'organisation' => $org === null ? null : ['id' => $org->id, 'name' => $org->name],
         ];
     }
 }
