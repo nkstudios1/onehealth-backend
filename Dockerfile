@@ -28,6 +28,13 @@ FROM dunglas/frankenphp:1-php8.4-bookworm
 # pdo_pgsql = talk to PostgreSQL (Render's database). opcache = keeps compiled PHP in memory (faster).
 RUN install-php-extensions pdo_pgsql opcache
 
+# The base image gives the frankenphp file a Linux capability (so it may bind ports below 1024).
+# Render starts containers without that capability, and the kernel then refuses to run the file:
+# "exec: frankenphp: Operation not permitted" (exit 126). We listen on $PORT (10000), which needs
+# no capability. Copying a file does not copy its capability attribute, so copy and replace it.
+RUN cp /usr/local/bin/frankenphp /tmp/frankenphp \
+    && mv -f /tmp/frankenphp /usr/local/bin/frankenphp
+
 WORKDIR /app
 COPY --from=vendor /app /app
 COPY docker/Caddyfile /etc/caddy/Caddyfile
