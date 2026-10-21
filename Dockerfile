@@ -4,6 +4,7 @@
 #   1. "vendor"  installs PHP packages with Composer (nothing from here but /app/vendor is needed later).
 #   2. runtime   FrankenPHP (a PHP app server built on Caddy). One process serves HTTP and runs PHP,
 #                so there is no nginx + php-fpm + supervisor to wire together.
+# PHP 8.4: composer.lock pins Symfony 8.x, which requires PHP >= 8.4.1.
 # Build locally:  docker build -t onehealth-api .
 # Run locally:    docker run --rm -p 8080:8080 --env-file .env -e APP_KEY=... onehealth-api
 
@@ -22,7 +23,7 @@ RUN composer dump-autoload --no-dev --classmap-authoritative --no-interaction \
     --no-scripts --ignore-platform-reqs
 
 # ---- 2. runtime ------------------------------------------------------------------------------
-FROM dunglas/frankenphp:1-php8.3-bookworm
+FROM dunglas/frankenphp:1-php8.4-bookworm
 
 # pdo_pgsql = talk to PostgreSQL (Render's database). opcache = keeps compiled PHP in memory (faster).
 RUN install-php-extensions pdo_pgsql opcache
