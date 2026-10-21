@@ -1,0 +1,74 @@
+# Render "Blueprint": create everything below from this file (New + > Blueprint in the dashboard).
+# Values marked "sync: false" are secrets you type in the dashboard; Render never stores them in git.
+# DATABASE: this file uses Neon (neon.tech), so there is no "databases:" block here.
+# To use Render's own Postgres instead, add this block above "services:" and swap the two DB_ variables below:
+#
+#   databases:
+#     - name: onehealth-db
+#       databaseName: onehealth
+#       user: onehealth
+#       plan: free
+#
+#   and for DB_URL use:   fromDatabase: { name: onehealth-db, property: connectionString }
+#   and delete DB_DIRECT_URL.
+
+services:
+  - type: web
+    name: onehealth-api
+    runtime: docker
+    plan: free            # free web services sleep after ~15 min idle (first request then takes ~1 min)
+    healthCheckPath: /up
+    envVars:
+      - key: APP_NAME
+        value: OneHealth
+      # "staging" so the demo seeder is allowed to run. Use "production" for real patients (see the guide).
+      - key: APP_ENV
+        value: staging
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        sync: false
+      - key: NIN_HASH_KEY
+        sync: false
+      - key: APP_URL
+        sync: false       # this service's own https URL
+      - key: DB_CONNECTION
+        value: pgsql
+      # Neon "pooled" connection string (host has -pooler). Used by the running app.
+      - key: DB_URL
+        sync: false
+      # Neon "direct" connection string (no -pooler). Used only for migrations at start-up.
+      - key: DB_DIRECT_URL
+        sync: false
+      - key: LOG_CHANNEL
+        value: stderr     # logs appear in Render's Logs tab (that is where the demo SMS codes show up)
+      - key: LOG_LEVEL
+        value: info
+      - key: SESSION_DRIVER
+        value: database
+      - key: CACHE_STORE
+        value: database
+      - key: QUEUE_CONNECTION
+        value: sync
+      - key: SESSION_SECURE_COOKIE
+        value: "true"
+      - key: SESSION_SAME_SITE
+        value: lax
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false       # the frontend's origin, e.g. https://onehealth.vercel.app (no trailing slash)
+      - key: APPROVAL_LINK_BASE
+        sync: false       # the frontend's /approve page, e.g. https://onehealth.vercel.app/approve
+      - key: NIN_DRIVER
+        value: fake
+      - key: SMS_DRIVER
+        value: log
+      - key: OTP_FIXED_CODE
+        value: "1234"     # DEMO ONLY. Remove before any real user signs up.
+      - key: ACCESS_PATIENT_WAIT_SECONDS
+        value: "15"       # demo: contacts are asked after 15 s instead of 2 min
+      - key: RUN_MIGRATIONS
+        value: "true"
+      - key: SEED_DEMO
+        value: "true"
+      - key: RUN_SCHEDULER
+        value: "true"
