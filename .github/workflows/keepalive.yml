@@ -1,0 +1,33 @@
+# Pings the API every 10 minutes so Render's free plan does not put it to sleep
+# (it sleeps after ~15 minutes without traffic, and a cold start takes ~30 seconds).
+#
+# /up only checks that the app is running. It does not touch the database, so Neon can still
+# scale to zero between real requests and your free compute hours are not used up.
+#
+# Notes:
+# - GitHub may delay scheduled runs by a few minutes when it is busy. 10 minutes + a delay stays
+#   under Render's 15-minute limit most of the time. For the demo, also open the app 2 minutes
+#   before you record.
+# - Scheduled workflows only run from the default branch, and GitHub pauses them after 60 days
+#   with no repository activity.
+# - To stop the pings: Actions tab -> "Keep API awake" -> ... -> Disable workflow.
+name: Keep API awake
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}   # lets you run it by hand from the Actions tab
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping /up
+        run: |
+          # --retry covers a cold start. --max-time stops a hung request from burning minutes.
+          curl --fail --silent --show-error --retry 3 --retry-delay 10 --max-time 60 \
+            -o /dev/null -w "HTTP %{http_code} in %{time_total}s\n" \
+            https://onehealth-backend-7lwx.onrender.com/up
